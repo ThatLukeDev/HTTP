@@ -1,7 +1,12 @@
 #include <iostream>
 
+#include "transfer.hpp"
+
 int main() {
-	std::cout << "Hello World!" << std::endl;
+	transfer.bindPort(1234, [&](std::string input) {
+		std::cout << input << std::endl;
+		return "";
+	});
 
 	return 0;
 }
