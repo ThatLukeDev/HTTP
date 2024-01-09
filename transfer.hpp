@@ -47,6 +47,12 @@ public:
 
 	void closeSocket(unsigned int _socket) {
 		close(_socket);
+		for (int i = 0; i < sockets.size(); i++) {
+			if (sockets[i] == _socket) {
+				sockets.erase(std::next(sockets.begin(), i));
+				ports.erase(std::next(ports.begin(), i));
+			}
+		}
 	}
 
 	int bindSocket(unsigned int _socket, std::function<std::string(std::string)> func) {
@@ -62,8 +68,8 @@ public:
 			}
 
 			char buffer[BUFFER_SIZE];
-			for (char c : buffer) {
-				c = 0;
+			for (int i = 0; i < BUFFER_SIZE; i++) {
+				buffer[i] = (char)0;
 			}
 
 			if (read(connection, buffer, BUFFER_SIZE - 1) < 0) {
@@ -74,7 +80,7 @@ public:
 			std::string response = func(std::string(buffer));
 
 			if (response == "") {
-				return 0;
+				continue;
 			}
 
 			if (write(connection, response.c_str(), sizeof(response.c_str())) < 0) {
@@ -83,9 +89,9 @@ public:
 			}
 
 			close(connection);
-
-			return 0;
 		}
+		closeSocket(_socket);
+
 		return 0;
 	}
 

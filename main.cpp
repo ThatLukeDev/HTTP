@@ -4,7 +4,7 @@
 
 int main() {
 	transfer.bindPort(1234, [&](std::string input) {
-		std::cout << input << std::endl;
+		std::cout << input;
 		return "";
 	});
 
