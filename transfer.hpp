@@ -11,7 +11,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 
-static class {
+static class transfer {
 
 	const int BUFFER_SIZE = 1024;
 	const int MAX_AWAITS = 5;
@@ -21,11 +21,18 @@ static class {
 
 public:
 
+	struct packet {
+		void* data;
+		int size;
+
+		packet(void* _data, int _size) : data(_data), size(_size) { }
+	};
+
 	int openSocket(unsigned int _port) {
 		int newSocket = socket(AF_INET, SOCK_STREAM, 0);
 
 		if (newSocket < 0) {
-			std::clog << "Error: Failed to open socket";
+			std::clog << "Error: Failed to open socket\n";
 			return -1;
 		}
 
@@ -38,7 +45,7 @@ public:
 		address.sin_addr.s_addr = INADDR_ANY;
 
 		if (bind(newSocket, (sockaddr*)&address, sizeof(address)) < 0) {
-			std::clog << "Error: Failed to bind socket";
+			std::clog << "Error: Failed to bind socket\n";
 			return -1;
 		}
 
@@ -55,7 +62,7 @@ public:
 		}
 	}
 
-	int bindSocket(unsigned int _socket, std::function<std::string(std::string)> func) {
+	int bindSocket(unsigned int _socket, std::function<packet(packet)> func) {
 		while (std::find(sockets.begin(), sockets.end(), _socket) != sockets.end()) {
 			listen(_socket, MAX_AWAITS);
 			sockaddr_in address = sockaddr_in();
@@ -63,7 +70,7 @@ public:
 
 			int connection = accept(_socket, (sockaddr*)&address, &addresslength);
 			if (connection < 0) {
-				std::clog << "Error: Failed to accept connection";
+				std::clog << "Error: Failed to accept connection\n";
 				return -1;
 			}
 
@@ -73,22 +80,21 @@ public:
 			}
 
 			if (read(connection, buffer, BUFFER_SIZE - 1) < 0) {
-				std::clog << "Error: Failed to recieve data from connection";
+				std::clog << "Error: Failed to recieve data from connection\n";
 				return -1;
 			}
 
-			std::string response = func(std::string(buffer));
-			char* csresponse = (char*)response.c_str();
+			packet response = func(packet(&buffer, strlen((char*)&buffer)));
 
-			if (response == "") {
+			if (response.size == 0) {
 				continue;
 			}
-			if (response == "BREAK") {
+			if (response.size == -1) {
 				break;
 			}
 
-			if (write(connection, csresponse, sizeof(csresponse)) < 0) {
-				std::clog << "Error: Failed to send data to connection";
+			if (write(connection, response.data, response.size) < 0) {
+				std::clog << "Error: Failed to send data to connection\n";
 				return -1;
 			}
 
@@ -107,7 +113,7 @@ public:
 		}
 	}
 
-	int bindPort(unsigned int _port, std::function<std::string(std::string)> func) {
+	int bindPort(unsigned int _port, std::function<packet(packet)> func) {
 		int _socket = -1;
 
 		for (int i = 0; i < ports.size(); i++) {
