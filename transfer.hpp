@@ -78,6 +78,7 @@ public:
 			}
 
 			std::string response = func(std::string(buffer));
+			char* csresponse = (char*)response.c_str();
 
 			if (response == "") {
 				continue;
@@ -86,7 +87,7 @@ public:
 				break;
 			}
 
-			if (write(connection, response.c_str(), sizeof(response.c_str())) < 0) {
+			if (write(connection, csresponse, sizeof(csresponse)) < 0) {
 				std::clog << "Error: Failed to send data to connection";
 				return -1;
 			}
