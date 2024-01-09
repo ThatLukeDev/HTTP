@@ -82,6 +82,9 @@ public:
 			if (response == "") {
 				continue;
 			}
+			if (response == "BREAK") {
+				break;
+			}
 
 			if (write(connection, response.c_str(), sizeof(response.c_str())) < 0) {
 				std::clog << "Error: Failed to send data to connection";
