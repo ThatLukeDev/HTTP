@@ -33,4 +33,5 @@
 
 # Temporary file
 *.tmp
+*.swp
 *temp*
