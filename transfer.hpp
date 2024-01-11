@@ -14,6 +14,10 @@
 #include <iostream>
 #include <fstream>
 
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
+
 namespace file {
 	struct packet {
 		void* data;
@@ -22,15 +26,47 @@ namespace file {
 		packet(void* _data, int _size) : data(_data), size(_size) { }
 	};
 
+	int type(char* _filename) {
+		struct stat sb;
+		if (stat(_filename, &sb) == -1) return -1;
+		if (sb.st_mode & S_IFDIR) return 1;
+		return 0;
+	}
+
+	bool exists(char* _filename) {
+		return file::type(_filename) != -1;
+	}
+
 	file::packet read(char* _filename) {
-		std::ifstream sr;
-		sr.open(_filename);
-		sr.seekg(0, std::ios::end);
-		file::packet _out = file::packet(malloc(sr.tellg()), sr.tellg());
-		sr.seekg(0);
-		sr.read((char*)_out.data, _out.size);
-		sr.close();
-		return _out;
+		int typ = file::type(_filename);
+		if (typ == 0) {
+			std::ifstream sr;
+			sr.open(_filename);
+			sr.seekg(0, std::ios::end);
+			file::packet _out = file::packet(malloc(sr.tellg()), sr.tellg());
+			sr.seekg(0);
+			sr.read((char*)_out.data, _out.size);
+			sr.close();
+			return _out;
+		}
+		if (typ == 1) {
+			std::string outS = "<html><body>\n";
+
+			DIR* dirs = opendir(_filename);
+			struct dirent* direntp;
+			while ((direntp = readdir(dirs)) != NULL) {
+				outS += "<a>";
+				outS += direntp->d_name;
+				outS += "</a>\n";
+			}
+			closedir(dirs);
+
+			outS += "</body></html>";
+			file::packet _out = file::packet(malloc(outS.length()), outS.length());
+			memcpy((char*)_out.data, outS.c_str(), _out.size);
+			return _out;
+		}
+		return file::packet(_filename, strlen(_filename));
 	}
 }
 
@@ -210,8 +246,9 @@ namespace HTTP {
 
 		char* absolutePath() {
 			bool _def = false;
-			char* _out = (char*)malloc(strlen(path));
-			memcpy(_out, path, strlen(path));
+			int strsize = headers - path + 1;
+			char* _out = (char*)malloc(strsize);
+			memcpy(_out, path, strsize);
 
 			if (_out[0] != '/') {
 				_def = true;
@@ -234,7 +271,7 @@ namespace HTTP {
 
 	class server {
 	public:
-		char* HOME = (char*)"./index.html";
+		char* HOME = (char*)".";
 
 		int port = 80;
 		bool running = false;
@@ -255,9 +292,9 @@ namespace HTTP {
 						path = HOME;
 					}
 					else {
-						path = (char*)malloc(strlen(absPath) + 1);
+						path = (char*)malloc(strlen(absPath) + 2);
 						path[0] = '.';
-						memcpy(path + 1, absPath, strlen(absPath));
+						memcpy(path + 1, absPath, strlen(absPath) + 1);
 					}
 
 					return file::read(path);
