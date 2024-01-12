@@ -22,8 +22,10 @@ namespace file {
 	struct packet {
 		void* data;
 		int size;
+		bool dofree = false;
 
 		packet(void* _data, int _size) : data(_data), size(_size) { }
+		packet(void* _data, int _size, bool _free) : data(_data), size(_size), dofree(_free) { }
 	};
 
 	int type(char* _filename) {
@@ -43,7 +45,7 @@ namespace file {
 			std::ifstream sr;
 			sr.open(_filename);
 			sr.seekg(0, std::ios::end);
-			file::packet _out = file::packet(malloc(sr.tellg()), sr.tellg());
+			file::packet _out = file::packet(malloc(sr.tellg()), sr.tellg(), true);
 			sr.seekg(0);
 			sr.read((char*)_out.data, _out.size);
 			sr.close();
@@ -55,14 +57,13 @@ namespace file {
 			DIR* dirs = opendir(_filename);
 			struct dirent* direntp;
 			while ((direntp = readdir(dirs)) != NULL) {
-				outS += "<a>";
 				outS += direntp->d_name;
-				outS += "</a>\n";
+				outS += "\n";
 			}
 			closedir(dirs);
 
 			outS += "</body></html>";
-			file::packet _out = file::packet(malloc(outS.length()), outS.length());
+			file::packet _out = file::packet(malloc(outS.length()), outS.length(), true);
 			memcpy((char*)_out.data, outS.c_str(), _out.size);
 			return _out;
 		}
@@ -115,7 +116,7 @@ public:
 	}
 
 	int bindSocket(unsigned int _socket, std::function<file::packet(file::packet)> func) {
-		while (1|| std::find(sockets.begin(), sockets.end(), _socket) != sockets.end()) {
+		while (std::find(sockets.begin(), sockets.end(), _socket) != sockets.end()) {
 			listen(_socket, MAX_AWAITS);
 			sockaddr_in address = sockaddr_in();
 			socklen_t addresslength = sizeof(address);
@@ -157,6 +158,8 @@ public:
 			}
 
 			close(connection);
+
+			if (response.dofree) free(response.data);
 		}
 
 		return 0;
@@ -200,10 +203,13 @@ namespace HTTP {
 		char* body;
 		int bodyLen;
 
+		void* _frP = nullptr;
+
 		message() { }
 		message(char* __msg, int _size) {
-			char* _msg = (char*)malloc(strlen(__msg));
-			memcpy(_msg, __msg, strlen(__msg));
+			char* _msg = (char*)malloc(_size + 1);
+			_frP = (void*)_msg;
+			memcpy(_msg, __msg, _size + 1);
 			char* msgS[4];
 			int v = 0;
 			int b = -1;
@@ -217,7 +223,7 @@ namespace HTTP {
 					}
 				}
 				else {
-					if (_msg[i] == '\n') {
+					if (_msg[i] == '\r' || _msg[i] == '\n') {
 						b++;
 						if (b == 0) {
 							v++;
@@ -243,6 +249,7 @@ namespace HTTP {
 			body = msgS[3];
 			bodyLen = _size - (int)(body - protocol);
 		}
+		~message() { if (_frP != nullptr) free(_frP); }
 
 		char* absolutePath() {
 			bool _def = false;
@@ -265,6 +272,20 @@ namespace HTTP {
 				return _out;
 			}
 
+			return _out;
+		}
+
+		file::packet get() {
+			int outCSsize = strlen(protocol) + strlen(path) + strlen(headers) + bodyLen + 5;
+			char* outCS = (char*)malloc(outCSsize);
+			memcpy(outCS, protocol, strlen(protocol) + 1);
+			strcat(outCS, (char*)" ");
+			strcat(outCS, path);
+			strcat(outCS, (char*)" ");
+			strcat(outCS, headers);
+			strcat(outCS, (char*)"\n\n");
+			strcat(outCS, body);
+			file::packet _out(outCS, outCSsize, true);
 			return _out;
 		}
 	};
@@ -292,12 +313,20 @@ namespace HTTP {
 						path = HOME;
 					}
 					else {
-						path = (char*)malloc(strlen(absPath) + 2);
+						path = (char*)malloc(strlen(absPath) + 3);
 						path[0] = '.';
 						memcpy(path + 1, absPath, strlen(absPath) + 1);
 					}
+					free(absPath);
 
-					return file::read(path);
+					file::packet content = file::read(path);
+					HTTP::message _out;
+					_out.body = (char*)content.data;
+					_out.bodyLen = content.size;
+					_out.protocol = (char*)"HTTP/1.1";
+					_out.path = (char*)"200 OK";
+					_out.headers = (char*)"";
+					return _out.get();
 				}
 
 				return _data;
