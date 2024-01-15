@@ -52,17 +52,24 @@ namespace file {
 			return _out;
 		}
 		if (typ == 1) {
-			std::string outS = "<html><body>\n";
+			std::string outS = "<html>\n<body>\n";
+
+			std::vector<std::string> files = std::vector<std::string>();
 
 			DIR* dirs = opendir(_filename);
 			struct dirent* direntp;
 			while ((direntp = readdir(dirs)) != NULL) {
-				outS += direntp->d_name;
-				outS += "\n";
+				files.push_back(direntp->d_name);
 			}
 			closedir(dirs);
 
-			outS += "</body></html>";
+			std::sort(files.begin(), files.end());
+
+			for (std::string file : files) {
+				outS += "<a href=\"" + file + "\">" + file + "</a><br>\n";
+			}
+
+			outS += "</body>\n</html>";
 			file::packet _out = file::packet(malloc(outS.length()), outS.length(), true);
 			memcpy((char*)_out.data, outS.c_str(), _out.size);
 			return _out;
